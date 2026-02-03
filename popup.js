@@ -7,21 +7,20 @@ function showStatus(message, type = "info") {
 
 // ============ EXPORT FUNCTIONS ============
 function formatCookiesForExport(cookies) {
-  let content = "# Netscape HTTP Cookie File\n";
-  content += "# Exported by Cookie Manager Extension\n";
-  content += "# Format: domain, httpOnly, path, secure, expiry, name, value\n\n";
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    cookies: cookies.map(cookie => ({
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain,
+      path: cookie.path || "/",
+      secure: cookie.secure,
+      httpOnly: cookie.httpOnly,
+      expirationDate: cookie.expirationDate || null
+    }))
+  };
   
-  cookies.forEach(cookie => {
-    const domain = cookie.domain.startsWith('.') ? cookie.domain : '.' + cookie.domain;
-    const httpOnly = cookie.httpOnly ? "TRUE" : "FALSE";
-    const path = cookie.path || "/";
-    const secure = cookie.secure ? "TRUE" : "FALSE";
-    const expiry = cookie.expirationDate ? Math.floor(cookie.expirationDate) : 0;
-    
-    content += `${domain}\t${httpOnly}\t${path}\t${secure}\t${expiry}\t${cookie.name}\t${cookie.value}\n`;
-  });
-  
-  return content;
+  return JSON.stringify(exportData, null, 2);
 }
 
 function downloadCookies(cookies, filename) {
@@ -31,7 +30,7 @@ function downloadCookies(cookies, filename) {
   }
   
   const content = formatCookiesForExport(cookies);
-  const blob = new Blob([content], { type: "text/plain" });
+  const blob = new Blob([content], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   
   const a = document.createElement("a");
@@ -43,21 +42,13 @@ function downloadCookies(cookies, filename) {
   showStatus(`Exported ${cookies.length} cookies!`, "success");
 }
 
-// Export all cookies
-document.getElementById("exportAll").addEventListener("click", () => {
-  chrome.cookies.getAll({}, (cookies) => {
-    const timestamp = new Date().toISOString().slice(0, 10);
-    downloadCookies(cookies, `all_cookies_${timestamp}.txt`);
-  });
-});
-
 // Export current site cookies
 document.getElementById("exportCurrent").addEventListener("click", () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     try {
       const url = new URL(tabs[0].url);
       chrome.cookies.getAll({ domain: url.hostname }, (cookies) => {
-        downloadCookies(cookies, `${url.hostname}_cookies.txt`);
+        downloadCookies(cookies, `${url.hostname}_cookies.json`);
       });
     } catch (e) {
       showStatus("Cannot export cookies from this page.", "error");
@@ -67,46 +58,25 @@ document.getElementById("exportCurrent").addEventListener("click", () => {
 
 // ============ IMPORT FUNCTIONS ============
 function parseCookieFile(content) {
-  const cookies = [];
-  const lines = content.split('\n');
-  
-  for (const line of lines) {
-    // Skip comments and empty lines
-    if (line.startsWith('#') || line.trim() === '') {
-      continue;
+  try {
+    const data = JSON.parse(content);
+    
+    if (!data.cookies || !Array.isArray(data.cookies)) {
+      throw new Error("Invalid JSON format: missing cookies array");
     }
     
-    const parts = line.split('\t');
-    
-    if (parts.length >= 7) {
-      let domain = parts[0].trim();
-      const httpOnly = parts[1].trim().toUpperCase() === "TRUE";
-      const path = parts[2].trim() || "/";
-      const secure = parts[3].trim().toUpperCase() === "TRUE";
-      const expiry = parseInt(parts[4].trim());
-      const name = parts[5].trim();
-      const value = parts.slice(6).join('\t').trim(); // Handle values with tabs
-      
-      // Build cookie object
-      const cookie = {
-        name: name,
-        value: value,
-        domain: domain,
-        path: path,
-        secure: secure,
-        httpOnly: httpOnly
-      };
-      
-      // Add expiration if valid (0 = session cookie)
-      if (expiry > 0) {
-        cookie.expirationDate = expiry;
-      }
-      
-      cookies.push(cookie);
-    }
+    return data.cookies.map(cookie => ({
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain,
+      path: cookie.path || "/",
+      secure: cookie.secure || false,
+      httpOnly: cookie.httpOnly || false,
+      expirationDate: cookie.expirationDate || undefined
+    }));
+  } catch (error) {
+    throw new Error(`Failed to parse JSON: ${error.message}`);
   }
-  
-  return cookies;
 }
 
 async function importCookies(cookies, filterDomain = null) {
@@ -167,7 +137,7 @@ async function importCookies(cookies, filterDomain = null) {
   }
 }
 
-function handleFileImport(filterToCurrentDomain = false) {
+function handleFileImport() {
   const fileInput = document.getElementById("fileInput");
   
   fileInput.onchange = async (event) => {
@@ -187,18 +157,14 @@ function handleFileImport(filterToCurrentDomain = false) {
       
       showStatus(`Importing ${cookies.length} cookies...`, "info");
       
-      if (filterToCurrentDomain) {
-        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-          try {
-            const url = new URL(tabs[0].url);
-            await importCookies(cookies, url.hostname);
-          } catch (e) {
-            showStatus("Cannot import to this page.", "error");
-          }
-        });
-      } else {
-        await importCookies(cookies);
-      }
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        try {
+          const url = new URL(tabs[0].url);
+          await importCookies(cookies, url.hostname);
+        } catch (e) {
+          showStatus("Cannot import to this page.", "error");
+        }
+      });
     };
     
     reader.onerror = () => {
@@ -214,14 +180,9 @@ function handleFileImport(filterToCurrentDomain = false) {
   fileInput.click();
 }
 
-// Import all cookies from file
-document.getElementById("importBtn").addEventListener("click", () => {
-  handleFileImport(false);
-});
-
 // Import only cookies matching current domain
 document.getElementById("importCurrentDomain").addEventListener("click", () => {
-  handleFileImport(true);
+  handleFileImport();
 });
 
 // ============ MANAGE FUNCTIONS ============
