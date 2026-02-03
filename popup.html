@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { width: 280px; padding: 15px; font-family: Arial; }
+    h3 { margin-top: 0; }
+    button { width: 100%; padding: 10px; margin: 5px 0; cursor: pointer; }
+    hr { margin: 15px 0; border: none; border-top: 1px solid #ccc; }
+    #fileInput { display: none; }
+    #status { margin-top: 10px; font-size: 12px; padding: 8px; border-radius: 4px; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    .info { background: #d1ecf1; color: #0c5460; }
+    .section-title { font-weight: bold; margin: 10px 0 5px 0; color: #333; }
+  </style>
+</head>
+<body>
+  <h3>🍪 Cookie Manager</h3>
+  
+  <div class="section-title">Export Cookies</div>
+  <button id="exportAll">Export All Cookies</button>
+  <button id="exportCurrent">Export Current Site</button>
+  
+  <hr>
+  
+  <div class="section-title">Import Cookies</div>
+  <button id="importBtn">Import from TXT File</button>
+  <button id="importCurrentDomain">Import (Current Domain Only)</button>
+  <input type="file" id="fileInput" accept=".txt">
+  
+  <hr>
+  
+  <div class="section-title">Manage Cookies</div>
+  <button id="clearCurrent">Clear Current Site Cookies</button>
+  
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

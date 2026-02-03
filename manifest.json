@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Cookie Exporter & Importer",
+  "version": "2.0",
+  "description": "Export and import cookies to/from TXT file",
+  "permissions": ["cookies", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
