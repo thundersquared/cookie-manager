@@ -157,14 +157,7 @@ function handleFileImport() {
       
       showStatus(`Importing ${cookies.length} cookies...`, "info");
       
-      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-        try {
-          const url = new URL(tabs[0].url);
-          await importCookies(cookies, url.hostname);
-        } catch (e) {
-          showStatus("Cannot import to this page.", "error");
-        }
-      });
+      await importCookies(cookies, null);
     };
     
     reader.onerror = () => {
@@ -187,6 +180,10 @@ document.getElementById("importCurrentDomain").addEventListener("click", () => {
 
 // ============ MANAGE FUNCTIONS ============
 document.getElementById("clearCurrent").addEventListener("click", () => {
+  if (!confirm("Are you sure you want to clear all cookies for the current site? This action cannot be undone.")) {
+    return;
+  }
+  
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     try {
       const url = new URL(tabs[0].url);
