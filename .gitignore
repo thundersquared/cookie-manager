@@ -1,0 +1,15 @@
+# Go build output
+daemon/nmhost
+daemon/sqrd-cookie-sync-nmhost*
+
+# Go test cache and coverage
+*.test
+*.out
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp

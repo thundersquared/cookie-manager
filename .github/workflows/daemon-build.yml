@@ -1,0 +1,33 @@
+name: Build daemon
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon/go.mod
+
+      - name: Build
+        working-directory: daemon
+        env:
+          GOOS: darwin
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags="-s -w" -o sqrd-cookie-sync-nmhost-darwin-${{ matrix.goarch }} ./cmd/nmhost
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: daemon/sqrd-cookie-sync-nmhost-darwin-${{ matrix.goarch }}

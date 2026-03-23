@@ -215,3 +215,118 @@ document.getElementById("clearCurrent").addEventListener("click", () => {
     }
   });
 });
+
+// ============ PEER SYNC (NATIVE MESSAGING) ============
+const NM_HOST = "com.thundersquared.cookiesync";
+
+let nmPort = null;
+let pollInterval = null;
+
+function renderPeers(peers) {
+  const list = document.getElementById("peer-list");
+  const status = document.getElementById("peers-status");
+  list.innerHTML = "";
+
+  if (!peers || peers.length === 0) {
+    status.textContent = "No peers found.";
+    return;
+  }
+
+  status.textContent = "";
+  peers.forEach(peer => {
+    const li = document.createElement("li");
+
+    const dot = document.createElement("span");
+    dot.className = "peer-dot " + (peer.last_ip ? "reachable" : "known");
+
+    const label = document.createElement("span");
+    label.style.flex = "1";
+    label.style.marginLeft = "2px";
+    label.textContent = `${peer.hostname || peer.id.slice(0, 8)} · ${peer.profile || "Default"}`;
+
+    const btn = document.createElement("button");
+    btn.className = "peer-sync-btn";
+    btn.textContent = "→";
+    btn.title = "Sync current site cookies to this peer";
+    btn.addEventListener("click", () => syncToPeer(peer.id));
+
+    li.appendChild(dot);
+    li.appendChild(label);
+    li.appendChild(btn);
+    list.appendChild(li);
+  });
+}
+
+function syncToPeer(peerId) {
+  if (!nmPort) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+    try {
+      const url = new URL(tabs[0].url);
+      chrome.cookies.getAll({ domain: url.hostname }, cookies => {
+        if (cookies.length === 0) {
+          showStatus("No cookies to sync.", "error");
+          return;
+        }
+        nmPort.postMessage({
+          action: "push_cookies",
+          peer_id: peerId,
+          domain: url.hostname,
+          cookies: cookies.map(c => ({
+            name: c.name, value: c.value, domain: c.domain,
+            path: c.path, secure: c.secure, httpOnly: c.httpOnly,
+            expirationDate: c.expirationDate || null
+          }))
+        });
+        showStatus(`Pushing ${cookies.length} cookies...`, "info");
+      });
+    } catch {
+      showStatus("Cannot sync cookies from this page.", "error");
+    }
+  });
+}
+
+function connectNativeHost() {
+  try {
+    nmPort = chrome.runtime.connectNative(NM_HOST);
+  } catch {
+    document.getElementById("peers-status").textContent = "Install sync daemon to enable peer sync.";
+    return;
+  }
+
+  nmPort.onDisconnect.addListener(() => {
+    clearInterval(pollInterval);
+    if (chrome.runtime.lastError) {
+      document.getElementById("peers-status").textContent = "Install sync daemon to enable peer sync.";
+    }
+    nmPort = null;
+  });
+
+  nmPort.onMessage.addListener(response => {
+    if (response.peers !== undefined) {
+      renderPeers(response.peers);
+    }
+    if (response.ok === true) {
+      showStatus("Cookies synced!", "success");
+    }
+    if (response.ok === false) {
+      showStatus(`Sync failed: ${response.error}`, "error");
+    }
+    if (response.pending && response.pending.length > 0) {
+      response.pending.forEach(batch => {
+        importCookies(batch.cookies, batch.domain).then(() => {
+          showStatus(`Received cookies from ${batch.from_hostname || batch.from_id.slice(0, 8)}`, "success");
+        });
+      });
+    }
+  });
+
+  // Fetch peer list immediately.
+  nmPort.postMessage({ action: "list_peers" });
+
+  // Poll for incoming cookies every 2 seconds.
+  pollInterval = setInterval(() => {
+    if (nmPort) nmPort.postMessage({ action: "check_pending" });
+  }, 2000);
+}
+
+connectNativeHost();
