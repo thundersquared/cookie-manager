@@ -246,7 +246,7 @@ function renderPeers(peers) {
 
     const btn = document.createElement("button");
     btn.className = "peer-sync-btn";
-    btn.textContent = "→";
+    btn.textContent = "Push Cookies";
     btn.title = "Sync current site cookies to this peer";
     btn.addEventListener("click", () => syncToPeer(peer.id));
 
